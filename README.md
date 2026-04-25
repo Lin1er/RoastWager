@@ -1,5 +1,11 @@
 # RoastWager Monorepo
 
+Contract Address: 0x09AcB861808f014673dAED424c1ACa4a9462559E
+
+Backend Endpoint: https://roastwager-production.up.railway.app
+App Front-end Endpoint: https://roast-wager.vercel.app/
+Landing App Front-end Endpoint: https://landing-roast-wager.vercel.app/
+
 RoastWager adalah aplikasi "opini + taruhan" di mana user bisa:
 - membuat postingan opini (hot take),
 - memilih `Agree` atau `Nah`,
