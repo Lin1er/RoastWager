@@ -32,7 +32,7 @@ export default function WagerModal({ open, type, onClose, content, postId, initi
   const publicClient = usePublicClient();
   const queryClient = useQueryClient();
   const { tokenAddress, symbol, decimals, minBet, voteMode } = useStakeToken();
-  const { addOptimisticVote } = useOptimisticRoastWager();
+  const { addOptimisticVote, removeOptimisticVote } = useOptimisticRoastWager();
   const { writeContractAsync, isPending } = useWriteContract();
   const userQuery = useQuery({
     queryKey: ["wager-user", address],
@@ -116,6 +116,8 @@ export default function WagerModal({ open, type, onClose, content, postId, initi
       return;
     }
 
+    let optimisticApplied = false;
+
     try {
       setError("");
       setStatus("Submitting wager...");
@@ -153,17 +155,23 @@ export default function WagerModal({ open, type, onClose, content, postId, initi
             },
       );
 
+      addOptimisticVote(postId, type);
+      optimisticApplied = true;
+
       setStatus("Transaction submitted. Waiting for confirmation...");
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (receipt.status !== "success") {
         throw new Error("Vote transaction reverted");
       }
 
-      addOptimisticVote(postId, type);
       setStatus("Confirmed. Waiting for backend sync...");
       await refreshRoastWagerQueries(queryClient, address);
       handleClose();
     } catch (voteError) {
+      if (optimisticApplied) {
+        removeOptimisticVote(postId);
+      }
+
       const message =
         voteError instanceof BaseError
           ? voteError.shortMessage || voteError.message

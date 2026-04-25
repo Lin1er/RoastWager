@@ -19,6 +19,7 @@ type OptimisticContextValue = {
   optimisticVotes: Record<string, OptimisticVote>;
   addPendingPost: (post: Omit<PendingPost, "optimisticId" | "expiresAt">) => void;
   addOptimisticVote: (postId: string, choice: VoteChoice) => void;
+  removeOptimisticVote: (postId: string) => void;
 };
 
 const PENDING_TTL_MS = 120_000;
@@ -65,6 +66,13 @@ export function OptimisticRoastWagerProvider({ children }: { children: React.Rea
             expiresAt: Date.now() + PENDING_TTL_MS,
           },
         }));
+      },
+      removeOptimisticVote: (postId) => {
+        setOptimisticVotes((current) => {
+          const next = { ...current };
+          delete next[postId];
+          return next;
+        });
       },
     }),
     [optimisticVotes, pendingPosts],
