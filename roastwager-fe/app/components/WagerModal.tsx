@@ -28,6 +28,7 @@ export default function WagerModal({ open, type, onClose, content, postId, initi
   const { defaultAmount } = useBetPreferences();
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const roastWagerAddress = requireRoastWagerAddress();
   const { address, isConnected } = useAccount();
   const publicClient = usePublicClient();
   const queryClient = useQueryClient();
@@ -66,7 +67,6 @@ export default function WagerModal({ open, type, onClose, content, postId, initi
   const level = userQuery.data?.level ?? 1;
   const levelCap = getLevelStakeCap(level);
   const configuredAmount = initialAmount || defaultAmount;
-  const roastWagerAddress = requireRoastWagerAddress();
 
   if (!open || !type) return null;
 
