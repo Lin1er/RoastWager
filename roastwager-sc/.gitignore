@@ -1,0 +1,20 @@
+# foundry build artifacts
+cache/
+out/
+
+# foundry broadcasts (generated tx run artifacts)
+broadcast/
+
+# local env files
+.env
+.env.local
+
+# logs
+*.log
+
+# misc
+.DS_Store
+
+# editor
+.vscode/
+.idea/
