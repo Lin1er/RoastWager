@@ -1,6 +1,9 @@
 import type { IndexerPost, IndexerUser, IndexerWager, PostStatus, WagerResult, WagerSide } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL?.trim() || "http://localhost:3001";
+const FEED_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_FEED_TIMEOUT_MS ?? 1200);
+const ENABLE_DEMO_FAST_FALLBACK = (process.env.NEXT_PUBLIC_DEMO_FAST_FALLBACK ?? "true").toLowerCase() !== "false";
+const CACHED_FEED_KEY = "rw_cached_feed_posts_v1";
 
 type ApiResponse<T> = {
   data: T;
@@ -41,6 +44,51 @@ type BackendWager = {
   timestamp: string;
 };
 
+const DEMO_POSTS: IndexerPost[] = [
+  {
+    id: "demo-1",
+    creator: "0x937008494c1d363044384593f2ed48e3d1dd4b02",
+    content: "Bitcoin bakal tembus ATH baru sebelum Q4 2026 selesai.",
+    imageUrl: null,
+    endTime: String(Math.floor(Date.now() / 1000) + 3600 * 10),
+    status: "active",
+    winningSide: null,
+    bullPool: null,
+    bearPool: null,
+    bullCount: null,
+    bearCount: null,
+    createdAt: String(Math.floor(Date.now() / 1000) - 900),
+  },
+  {
+    id: "demo-2",
+    creator: "0x8f0dc2e905f8f5ea2f081e5db7b0a627f8e4f999",
+    content: "AI agent bakal ganti dashboard analytics tradisional tahun ini.",
+    imageUrl: null,
+    endTime: String(Math.floor(Date.now() / 1000) + 3600 * 4),
+    status: "active",
+    winningSide: null,
+    bullPool: null,
+    bearPool: null,
+    bullCount: null,
+    bearCount: null,
+    createdAt: String(Math.floor(Date.now() / 1000) - 1800),
+  },
+  {
+    id: "demo-3",
+    creator: "0xc0ffee254729296a45a3885639ac7e10f9d54979",
+    content: "Meme coin season lanjut sampai mid-2026 walau BTC sideway.",
+    imageUrl: null,
+    endTime: String(Math.floor(Date.now() / 1000) + 3600 * 22),
+    status: "active",
+    winningSide: null,
+    bullPool: null,
+    bearPool: null,
+    bullCount: null,
+    bearCount: null,
+    createdAt: String(Math.floor(Date.now() / 1000) - 2700),
+  },
+];
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const method = (init?.method ?? "GET").toUpperCase();
   const hasBody = init?.body !== undefined && init?.body !== null;
@@ -69,6 +117,42 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return payload.data;
+}
+
+async function requestWithTimeout<T>(path: string, timeoutMs: number, init?: RequestInit): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await request<T>(path, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function readCachedPosts(): IndexerPost[] {
+  if (typeof window === "undefined") return [];
+  const raw = window.localStorage.getItem(CACHED_FEED_KEY);
+  if (!raw) return [];
+
+  try {
+    const parsed = JSON.parse(raw) as IndexerPost[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeCachedPosts(posts: IndexerPost[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CACHED_FEED_KEY, JSON.stringify(posts));
+  } catch {
+    // ignore storage failures
+  }
 }
 
 function addressCandidates(address: string) {
@@ -104,8 +188,25 @@ export function getBackendApiUrl() {
 }
 
 export async function fetchPosts(limit = 20): Promise<IndexerPost[]> {
-  const posts = await request<BackendPost[]>(`/api/posts?limit=${limit}`);
-  return posts.map(mapPost);
+  try {
+    const posts = await requestWithTimeout<BackendPost[]>(`/api/posts?limit=${limit}`, FEED_TIMEOUT_MS);
+    const mapped = posts.map(mapPost);
+    if (mapped.length > 0) {
+      writeCachedPosts(mapped);
+    }
+    return mapped;
+  } catch {
+    const cached = readCachedPosts();
+    if (cached.length > 0) {
+      return cached.slice(0, limit);
+    }
+
+    if (ENABLE_DEMO_FAST_FALLBACK) {
+      return DEMO_POSTS.slice(0, limit);
+    }
+
+    return [];
+  }
 }
 
 export async function fetchPost(id: string): Promise<IndexerPost | null> {
