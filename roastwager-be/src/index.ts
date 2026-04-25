@@ -10,6 +10,9 @@ import { usersRouter } from './routes/users.js'
 import { wagersRouter } from './routes/wagers.js'
 
 const app = new Hono()
+const appRole = (process.env.APP_ROLE ?? 'web').toLowerCase()
+const enableListener = (process.env.ENABLE_LISTENER ?? (appRole === 'worker' ? 'true' : 'false')).toLowerCase() === 'true'
+const strictHealthcheck = (process.env.HEALTHCHECK_STRICT ?? 'false').toLowerCase() === 'true'
 
 const frontendUrl = process.env.FRONTEND_URL ?? '*'
 const rateLimitWindowMs = 60_000
@@ -63,6 +66,10 @@ app.use('*', async (c, next) => {
 
 app.get('/health', async (c) => {
   try {
+    if (!strictHealthcheck) {
+      return c.json({ status: 'ok' })
+    }
+
     const block = await getLastProcessedBlock()
     return c.json({ status: 'ok', block: block.toString() })
   } catch (error) {
@@ -70,6 +77,8 @@ app.get('/health', async (c) => {
     return c.json({ error: message, code: 'INTERNAL_ERROR' }, 500)
   }
 })
+
+app.get('/ping', (c) => c.text('pong'))
 
 app.route('/api/posts', postsRouter)
 app.route('/api/users', usersRouter)
@@ -84,21 +93,47 @@ app.onError((error, c) => {
 
 const port = Number(process.env.PORT ?? 3001)
 
-const stopListener = startEventListener()
+if (appRole === 'worker') {
+  if (!enableListener) {
+    console.log('[worker] ENABLE_LISTENER=false, exiting')
+    process.exit(0)
+  }
 
-const server = serve({
-  fetch: app.fetch,
-  port,
-})
+  console.log('[worker] starting event listener...')
+  const stopListener = startEventListener()
 
-console.log(`[api] RoastWager backend running on http://localhost:${port}`)
+  const shutdownWorker = (): void => {
+    console.log('[worker] shutting down...')
+    stopListener()
+    process.exit(0)
+  }
 
-const shutdown = (): void => {
-  console.log('[api] shutting down...')
-  stopListener()
-  server.close()
-  process.exit(0)
+  process.on('SIGTERM', shutdownWorker)
+  process.on('SIGINT', shutdownWorker)
+} else {
+  let stopListener: (() => void) | null = null
+
+  const server = serve({
+    fetch: app.fetch,
+    port,
+  })
+
+  console.log(`[api] RoastWager backend running on http://localhost:${port}`)
+
+  if (enableListener) {
+    console.log('[api] ENABLE_LISTENER=true, starting listener inside web process')
+    stopListener = startEventListener()
+  } else {
+    console.log('[api] ENABLE_LISTENER=false, web process runs without listener')
+  }
+
+  const shutdown = (): void => {
+    console.log('[api] shutting down...')
+    stopListener?.()
+    server.close()
+    process.exit(0)
+  }
+
+  process.on('SIGTERM', shutdown)
+  process.on('SIGINT', shutdown)
 }
-
-process.on('SIGTERM', shutdown)
-process.on('SIGINT', shutdown)
