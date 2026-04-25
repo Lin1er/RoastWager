@@ -44,6 +44,7 @@ type BackendWager = {
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const method = (init?.method ?? "GET").toUpperCase();
   const hasBody = init?.body !== undefined && init?.body !== null;
+  const isRead = method === "GET" || method === "HEAD";
 
   const headers: Record<string, string> = {
     accept: "application/json",
@@ -58,7 +59,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers,
-    cache: "no-store",
+    cache: isRead ? "default" : "no-store",
   });
 
   const payload = (await response.json()) as ApiResponse<T>;

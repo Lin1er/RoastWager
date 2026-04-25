@@ -130,9 +130,11 @@ postsRouter.get('/', async (c) => {
 
     if (status === 'active') {
       const blindPosts: BlindPost[] = posts.map(({ bullPool, bearPool, bullCount, bearCount, ...rest }) => rest)
+      c.header('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=30')
       return c.json({ data: blindPosts, total, hasMore, meta: { total, hasMore, limit, offset } })
     }
 
+    c.header('Cache-Control', 'public, max-age=10, s-maxage=10, stale-while-revalidate=30')
     return c.json({ data: posts, total, hasMore, meta: { total, hasMore, limit, offset } })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
