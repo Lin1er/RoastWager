@@ -81,9 +81,6 @@ backdrop-blur-md
 "
         >
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--primary)] text-sm font-black text-white">
-              ⚡
-            </div>
             <span className="text-sm font-bold tracking-wide text-[var(--text-main)] md:text-base">
               ROASTWAGER
             </span>
