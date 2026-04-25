@@ -1,0 +1,54 @@
+@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-main: #18181b;
+  --bg-card: #0f0f10;
+  --primary: #432271;
+  --primary-soft: #6d3bbd;
+  --text-main: #f5f5f5;
+  --text-muted: #a1a1aa;
+  --border-soft: #27272a;
+}
+
+@theme inline {
+  --color-background: var(--bg-main);
+  --color-foreground: var(--text-main);
+}
+
+body {
+  background: var(--bg-main);
+  color: var(--text-main);
+  font-family: "Space Grotesk", "Manrope", "Segoe UI", sans-serif;
+}
+
+.feature-swiper,
+.feature-swiper .swiper,
+.feature-swiper .swiper-wrapper {
+  overflow: visible !important;
+}
+
+.feature-swiper .swiper-slide {
+  transition: opacity 220ms ease;
+  opacity: 0.72;
+}
+
+.feature-swiper .swiper-slide-active {
+  opacity: 1;
+}
+
+.feature-swiper .swiper-pagination {
+  bottom: 0 !important;
+}
+
+.feature-swiper .swiper-pagination-bullet {
+  background: #9d8cc5;
+  opacity: 0.5;
+}
+
+.feature-swiper .swiper-pagination-bullet-active {
+  background: #ffffff;
+  opacity: 1;
+}
