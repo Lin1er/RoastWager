@@ -9,6 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchUser, fetchWagersByUser, getBackendApiUrl } from "@/lib/backend";
 import { formatMon, formatPercent } from "@/lib/format";
 import { useStakeToken } from "@/lib/useStakeToken";
+import Image from "next/image";
+
 
 const navItems = [
   { href: "/", label: "Home", icon: Home },
@@ -47,7 +49,16 @@ export default function DesktopSidebar() {
     <aside className="hidden h-screen w-72 flex-col overflow-hidden border-r border-[var(--border-soft)] bg-[var(--bg-card)] p-5 lg:flex">
       <div className="mb-6 flex items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--primary)] text-sm font-black text-white">
-          ⚡
+        <Image
+              src="/aurel.png"
+              alt="RoastWager Logo"
+              fill
+              priority
+              className="
+        object-contain
+        scale-[1.35]
+      "
+            />
         </div>
         <div>
           <p className="text-base font-black tracking-tight text-[var(--text-main)]">RoastWager</p>
