@@ -19,18 +19,18 @@ export default function Home() {
   const postsQuery = useQuery({
     queryKey: ["feed-posts"],
     queryFn: () => fetchPosts(20),
-    refetchInterval: 4000,
-    refetchOnWindowFocus: true,
-    staleTime: 1500,
+    refetchInterval: 15000,
+    refetchOnWindowFocus: false,
+    staleTime: 10000,
   });
 
   const wagersQuery = useQuery({
     queryKey: ["profile-wagers", address],
     queryFn: () => fetchWagersByUser(address!, 100),
     enabled: Boolean(address),
-    refetchInterval: 4000,
-    refetchOnWindowFocus: true,
-    staleTime: 1500,
+    refetchInterval: 15000,
+    refetchOnWindowFocus: false,
+    staleTime: 10000,
   });
 
   const feedPosts = useMemo(() => {

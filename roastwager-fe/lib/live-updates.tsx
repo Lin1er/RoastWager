@@ -24,7 +24,7 @@ export function LiveUpdatesBridge() {
         queryClient.invalidateQueries({ queryKey: ["profile-user"] }),
         queryClient.invalidateQueries({ queryKey: ["header-user"] }),
       ]);
-    }, 8000);
+    }, 30000);
 
     return () => {
       window.clearInterval(interval);
