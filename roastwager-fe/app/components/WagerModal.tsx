@@ -50,7 +50,7 @@ export default function WagerModal({ open, type, onClose, content, postId, initi
               address: tokenAddress,
               abi: erc20Abi,
               functionName: "allowance",
-              args: [address, requireRoastWagerAddress()],
+              args: [address, roastWagerAddress],
             },
           ]
         : [],
@@ -66,6 +66,7 @@ export default function WagerModal({ open, type, onClose, content, postId, initi
   const level = userQuery.data?.level ?? 1;
   const levelCap = getLevelStakeCap(level);
   const configuredAmount = initialAmount || defaultAmount;
+  const roastWagerAddress = requireRoastWagerAddress();
 
   if (!open || !type) return null;
 
@@ -126,7 +127,7 @@ export default function WagerModal({ open, type, onClose, content, postId, initi
             address: tokenAddress,
             abi: erc20Abi,
             functionName: "approve",
-            args: [requireRoastWagerAddress(), maxUint256],
+            args: [roastWagerAddress, maxUint256],
           });
           const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approveHash });
           if (approveReceipt.status !== "success") {
@@ -138,13 +139,13 @@ export default function WagerModal({ open, type, onClose, content, postId, initi
       const hash = await writeContractAsync(
         voteMode === "erc20"
           ? {
-              address: requireRoastWagerAddress(),
+              address: roastWagerAddress,
               abi: roastWagerAbi,
               functionName: "vote",
               args: [BigInt(postId), type === "agree", amountValue],
             }
           : {
-              address: requireRoastWagerAddress(),
+              address: roastWagerAddress,
               abi: roastWagerAbi,
               functionName: "vote",
               args: [BigInt(postId), type === "agree"],
