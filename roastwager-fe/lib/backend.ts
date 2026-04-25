@@ -42,12 +42,22 @@ type BackendWager = {
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? "GET").toUpperCase();
+  const hasBody = init?.body !== undefined && init?.body !== null;
+
+  const headers: Record<string, string> = {
+    accept: "application/json",
+    ...((init?.headers as Record<string, string> | undefined) ?? {}),
+  };
+
+  // Avoid forcing Content-Type on GET/HEAD to prevent unnecessary CORS preflight.
+  if (hasBody && method !== "GET" && method !== "HEAD" && !headers["content-type"]) {
+    headers["content-type"] = "application/json";
+  }
+
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
-    headers: {
-      "content-type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers,
     cache: "no-store",
   });
 
