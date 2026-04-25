@@ -84,41 +84,49 @@ postsRouter.get('/', async (c) => {
     const status = c.req.query('status')
     const limit = parseNonNegativeInt(c.req.query('limit'), 20)
     const offset = parseNonNegativeInt(c.req.query('offset'), 0)
+    const includeTotal = c.req.query('includeTotal') === 'true'
 
     if (status && status !== 'active' && status !== 'settled' && status !== 'refunded') {
       return c.json({ error: 'Invalid status', code: 'BAD_REQUEST' }, 400)
     }
 
-    let countQuery = supabase.from('posts').select('id', { count: 'exact', head: true })
     let dataQuery = supabase
       .from('posts')
       .select('*')
       .like('id', scopedPostLikePattern)
       .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1)
-    countQuery = countQuery.like('id', scopedPostLikePattern)
+      .range(offset, offset + limit)
 
     if (status) {
-      countQuery = countQuery.eq('status', status)
       dataQuery = dataQuery.eq('status', status)
     }
 
-    const [{ count, error: countError }, { data, error: dataError }] = await Promise.all([
-      countQuery,
-      dataQuery,
-    ])
+    const countQuery = includeTotal
+      ? supabase.from('posts').select('id', { count: 'exact', head: true }).like('id', scopedPostLikePattern)
+      : null
 
-    if (countError) {
-      return c.json({ error: countError.message, code: 'DB_ERROR' }, 500)
-    }
+    const [{ data, error: dataError }, countResult] = await Promise.all([
+      dataQuery,
+      includeTotal
+        ? status
+          ? countQuery!.eq('status', status)
+          : countQuery!
+        : Promise.resolve({ count: null, error: null } as { count: number | null; error: null }),
+    ])
 
     if (dataError) {
       return c.json({ error: dataError.message, code: 'DB_ERROR' }, 500)
     }
 
-    const posts = ((data ?? []) as PostRow[]).map(mapPostRow)
-    const total = count ?? 0
-    const hasMore = offset + posts.length < total
+    if (countResult.error) {
+      return c.json({ error: countResult.error.message, code: 'DB_ERROR' }, 500)
+    }
+
+    const rows = (data ?? []) as PostRow[]
+    const hasMore = rows.length > limit
+    const pagedRows = hasMore ? rows.slice(0, limit) : rows
+    const posts = pagedRows.map(mapPostRow)
+    const total = countResult.count
 
     if (status === 'active') {
       const blindPosts: BlindPost[] = posts.map(({ bullPool, bearPool, bullCount, bearCount, ...rest }) => rest)
