@@ -19,7 +19,7 @@ export default function Home() {
   const postsQuery = useQuery({
     queryKey: ["feed-posts"],
     queryFn: () => fetchPosts(20),
-    refetchInterval: 15000,
+    refetchInterval: 30000,
     refetchOnWindowFocus: false,
     staleTime: 10000,
   });
@@ -28,7 +28,7 @@ export default function Home() {
     queryKey: ["profile-wagers", address],
     queryFn: () => fetchWagersByUser(address!, 100),
     enabled: Boolean(address),
-    refetchInterval: 15000,
+    refetchInterval: 30000,
     refetchOnWindowFocus: false,
     staleTime: 10000,
   });
