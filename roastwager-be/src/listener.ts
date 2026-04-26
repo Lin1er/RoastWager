@@ -2,7 +2,7 @@ import 'dotenv/config'
 import { type Address, type Hash, type Hex, createWalletClient, formatUnits, getAddress, http } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { roastWagerAbi } from './lib/abi.js'
-import { monadTestnet, publicClient, rpcUrl } from './lib/viemClient.js'
+import { celoMainnet, publicClient, rpcUrl } from './lib/viemClient.js'
 import { handleClaimed } from './handlers/claimed.js'
 import { handleRefunded } from './handlers/refunded.js'
 import { handleResolved } from './handlers/resolved.js'
@@ -132,7 +132,7 @@ function createAutoResolveWalletClient() {
 
   return createWalletClient({
     account,
-    chain: monadTestnet,
+    chain: celoMainnet,
     transport: http(rpcUrl),
   })
 }

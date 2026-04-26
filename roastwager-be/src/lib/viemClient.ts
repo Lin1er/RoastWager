@@ -1,26 +1,26 @@
 import 'dotenv/config'
 import { createPublicClient, defineChain, http } from 'viem'
 
-export const rpcUrl = process.env.MONAD_RPC_URL
+export const rpcUrl = process.env.CELO_RPC_URL ?? process.env.MONAD_RPC_URL
 
 if (!rpcUrl) {
-  throw new Error('Missing MONAD_RPC_URL')
+  throw new Error('Missing CELO_RPC_URL')
 }
 
-const rawChainId = process.env.MONAD_CHAIN_ID
-const defaultMonadTestnetChainId = 10143
-const parsedChainId = rawChainId ? Number(rawChainId) : defaultMonadTestnetChainId
+const rawChainId = process.env.CELO_CHAIN_ID ?? process.env.MONAD_CHAIN_ID
+const defaultCeloMainnetChainId = 42220
+const parsedChainId = rawChainId ? Number(rawChainId) : defaultCeloMainnetChainId
 
 if (!Number.isInteger(parsedChainId) || parsedChainId <= 0) {
-  throw new Error('Invalid MONAD_CHAIN_ID')
+  throw new Error('Invalid CELO_CHAIN_ID')
 }
 
-export const monadTestnet = defineChain({
+export const celoMainnet = defineChain({
   id: parsedChainId,
-  name: 'Monad Testnet',
+  name: 'Celo Mainnet',
   nativeCurrency: {
-    name: 'MON',
-    symbol: 'MON',
+    name: 'CELO',
+    symbol: 'CELO',
     decimals: 18,
   },
   rpcUrls: {
@@ -31,6 +31,6 @@ export const monadTestnet = defineChain({
 })
 
 export const publicClient = createPublicClient({
-  chain: monadTestnet,
+  chain: celoMainnet,
   transport: http(rpcUrl),
 })
