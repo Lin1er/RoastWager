@@ -20,6 +20,7 @@ export const metadata: Metadata = {
     title: "RoastWager",
     statusBarStyle: "black-translucent",
   },
+
 };
 
 export const viewport: Viewport = {
@@ -33,6 +34,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <meta name="talentapp:project_verification" content="fa90d5568a76f3107e764ad113395a534e44cd72536855ce80bcc02b558bd00132e7f24346f8670f0a6e8a4af97586207fd0b29277837447128999158ab6989c"></meta>
       <body className="bg-(--bg-main) text-(--text-main)">
         <ClientShellNoSSR>{children}</ClientShellNoSSR>
       </body>
