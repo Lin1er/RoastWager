@@ -4,17 +4,7 @@ import WagerModal from "./WagerModal";
 import { Share2, ThumbsUp, ThumbsDown, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useQueryClient } from "@tanstack/react-query";
-import {
-  useAccount,
-  usePublicClient,
-  useWriteContract,
-} from "wagmi";
-import { BaseError } from "viem";
 import { formatMon, shortenAddress } from "@/lib/format";
-import { refreshRoastWagerQueries } from "@/lib/query-sync";
-import { roastWagerAbi } from "@/lib/roastWagerAbi";
-import { requireRoastWagerAddress } from "@/lib/contracts";
 import { useStakeToken } from "@/lib/useStakeToken";
 import { useBetPreferences } from "@/lib/bet-preferences";
 import type { FeedPost } from "@/lib/types";
@@ -57,16 +47,10 @@ export default function PostCard({
   const [showModal, setShowModal] = useState<"agree" | "disagree" | null>(null);
   const [failedImageUrl, setFailedImageUrl] = useState<string | null>(null);
   const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false);
-  const [resolveStatus, setResolveStatus] = useState("");
-  const [resolveError, setResolveError] = useState("");
   const showBlindStats = post.status !== "active";
-  const queryClient = useQueryClient();
-  const { address } = useAccount();
-  const publicClient = usePublicClient();
-  const { writeContractAsync, isPending } = useWriteContract();
   const { symbol, decimals } = useStakeToken();
   const { defaultAmount } = useBetPreferences();
-  const canResolve =
+  const isEndedActive =
     post.status === "active" && post.timeLeft === "Ended" && !post.isPending;
   const safeImageUrl = useMemo(() => getSafeImageUrl(post.imageUrl), [post.imageUrl]);
   const canShowImage = Boolean(safeImageUrl && safeImageUrl !== failedImageUrl);
@@ -83,39 +67,6 @@ export default function PostCard({
     }
 
     await navigator.clipboard.writeText(url);
-  };
-
-  const handleResolve = async () => {
-    if (!publicClient) {
-      setResolveError("Public client is not ready.");
-      return;
-    }
-
-    try {
-      setResolveError("");
-      setResolveStatus("Submitting resolve transaction...");
-      const hash = await writeContractAsync({
-        address: requireRoastWagerAddress(),
-        abi: roastWagerAbi,
-        functionName: "resolve",
-        args: [BigInt(post.id)],
-      });
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      if (receipt.status !== "success")
-        throw new Error("Resolve transaction reverted");
-      setResolveStatus("Resolved. Waiting for backend sync...");
-      await refreshRoastWagerQueries(queryClient, address);
-      setResolveStatus("");
-    } catch (error) {
-      const message =
-        error instanceof BaseError
-          ? error.shortMessage || error.message
-          : error instanceof Error
-            ? error.message
-            : "Failed to resolve market";
-      setResolveError(message);
-      setResolveStatus("");
-    }
   };
 
   return (
@@ -202,7 +153,7 @@ export default function PostCard({
 
         {!isInExplorer &&
           post.status === "active" &&
-          !canResolve &&
+          !isEndedActive &&
           !post.isPending &&
           !post.myVote && (
             <div className="flex gap-2">
@@ -246,23 +197,9 @@ export default function PostCard({
           </div>
         )}
 
-        {!isInExplorer && canResolve && (
-          <div className="space-y-3">
-            <button
-              onClick={handleResolve}
-              disabled={isPending}
-              className="w-full rounded-xl bg-[var(--primary-soft)] py-3 text-sm font-bold text-white disabled:opacity-40"
-            >
-              {isPending ? "Resolving..." : "Resolve Market"}
-            </button>
-            {(resolveStatus || resolveError) && (
-              <div className="rounded-xl border border-[var(--border-soft)] bg-[var(--bg-main)] px-3 py-2 text-xs">
-                {resolveStatus && (
-                  <p className="text-[var(--text-main)]">{resolveStatus}</p>
-                )}
-                {resolveError && <p className="text-red-300">{resolveError}</p>}
-              </div>
-            )}
+        {!isInExplorer && isEndedActive && (
+          <div className="rounded-xl border border-[var(--primary)]/30 bg-[var(--primary)]/10 px-3 py-2 text-center text-xs font-semibold text-[var(--primary-soft)]">
+            Market ended. Waiting for auto resolve.
           </div>
         )}
 

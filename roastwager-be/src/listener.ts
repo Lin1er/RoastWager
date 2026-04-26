@@ -1,7 +1,8 @@
 import 'dotenv/config'
-import { type Address, type Hash, formatUnits, getAddress } from 'viem'
+import { type Address, type Hash, type Hex, createWalletClient, formatUnits, getAddress, http } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 import { roastWagerAbi } from './lib/abi.js'
-import { publicClient } from './lib/viemClient.js'
+import { monadTestnet, publicClient, rpcUrl } from './lib/viemClient.js'
 import { handleClaimed } from './handlers/claimed.js'
 import { handleRefunded } from './handlers/refunded.js'
 import { handleResolved } from './handlers/resolved.js'
@@ -14,7 +15,7 @@ import {
   supabase,
   updateLastProcessedBlock,
 } from './db/supabase.js'
-import { currentContractScope, scopeWagerId } from './lib/scope.js'
+import { currentContractScope, scopedPostLikePattern, scopeWagerId, unscopePostId } from './lib/scope.js'
 
 const contractAddressEnv = process.env.CONTRACT_ADDRESS
 const stableSymbol = process.env.STABLE_SYMBOL ?? 'USDC'
@@ -34,6 +35,16 @@ const MAX_BACKOFF_MS = 30_000
 const INITIAL_BACKOFF_MS = 1_000
 const LOGS_BLOCK_RANGE = 100n
 const configuredSyncStartBlock = process.env.SYNC_START_BLOCK
+const autoResolveEnabled = (process.env.AUTO_RESOLVE_ENABLED ?? 'true').toLowerCase() === 'true'
+const autoResolveIntervalMs = parsePositiveInt(process.env.AUTO_RESOLVE_INTERVAL_MS, 15_000)
+const autoResolveBatchSize = parsePositiveInt(process.env.AUTO_RESOLVE_BATCH_SIZE, 5)
+const autoResolveFailureCooldownMs = parsePositiveInt(process.env.AUTO_RESOLVE_FAILURE_COOLDOWN_MS, 120_000)
+const autoResolvePrivateKey = process.env.AUTO_RESOLVE_PRIVATE_KEY?.trim() ?? process.env.PRIVATE_KEY?.trim()
+
+type AutoResolvePostRow = {
+  id: string
+  end_time: string | number | bigint
+}
 
 type EventName = 'WagerCreated' | 'Voted' | 'Resolved' | 'Refunded' | 'Claimed'
 
@@ -54,6 +65,80 @@ interface NormalizedEventLog {
 }
 
 type Unwatch = () => void
+
+function parsePositiveInt(rawValue: string | undefined, fallback: number): number {
+  const value = rawValue?.trim()
+  if (!value) return fallback
+
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    return fallback
+  }
+
+  return parsed
+}
+
+function isLikelyPrivateKey(value: string): value is Hex {
+  return /^0x[0-9a-fA-F]{64}$/.test(value)
+}
+
+function parseEndTimeSeconds(value: string | number | bigint): number | null {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? value : null
+  }
+
+  if (typeof value === 'bigint') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) {
+    return null
+  }
+
+  return parsed
+}
+
+function getPostIdFromScopedId(scopedId: string): bigint | null {
+  const unscopedId = unscopePostId(scopedId).trim()
+  if (unscopedId.length === 0) {
+    return null
+  }
+
+  try {
+    return BigInt(unscopedId)
+  } catch {
+    return null
+  }
+}
+
+function createAutoResolveWalletClient() {
+  if (!autoResolveEnabled) {
+    return null
+  }
+
+  if (!autoResolvePrivateKey) {
+    console.warn('[AUTO_RESOLVE] Disabled: missing AUTO_RESOLVE_PRIVATE_KEY or PRIVATE_KEY')
+    return null
+  }
+
+  if (!isLikelyPrivateKey(autoResolvePrivateKey)) {
+    console.warn('[AUTO_RESOLVE] Disabled: invalid private key format')
+    return null
+  }
+
+  const account = privateKeyToAccount(autoResolvePrivateKey)
+
+  return createWalletClient({
+    account,
+    chain: monadTestnet,
+    transport: http(rpcUrl),
+  })
+}
+
+const autoResolveWalletClient = createAutoResolveWalletClient()
+const autoResolveFailureUntil = new Map<string, number>()
 
 function asBigint(value: unknown, fieldName: string): bigint {
   if (typeof value !== 'bigint') {
@@ -264,6 +349,83 @@ function normalizeLogs(
   return normalized
 }
 
+async function getExpiredActivePosts(limit: number): Promise<Array<{ id: string; endTime: number }>> {
+  const nowSeconds = Math.floor(Date.now() / 1000)
+
+  const { data, error } = await supabase
+    .from('posts')
+    .select('id, end_time')
+    .eq('status', 'active')
+    .like('id', scopedPostLikePattern)
+    .lte('end_time', nowSeconds)
+    .order('end_time', { ascending: true })
+    .limit(limit)
+
+  if (error) {
+    throw new Error(`Failed to fetch expired posts: ${error.message}`)
+  }
+
+  const rows = (data ?? []) as AutoResolvePostRow[]
+  const normalized: Array<{ id: string; endTime: number }> = []
+
+  for (const row of rows) {
+    const endTime = parseEndTimeSeconds(row.end_time)
+
+    if (typeof row.id !== 'string' || endTime === null) {
+      continue
+    }
+
+    normalized.push({ id: row.id, endTime })
+  }
+
+  return normalized
+}
+
+async function autoResolveExpiredPosts(): Promise<void> {
+  if (!autoResolveWalletClient) {
+    return
+  }
+
+  const nowMs = Date.now()
+  const expiredPosts = await getExpiredActivePosts(autoResolveBatchSize)
+
+  for (const post of expiredPosts) {
+    const blockedUntil = autoResolveFailureUntil.get(post.id) ?? 0
+    if (blockedUntil > nowMs) {
+      continue
+    }
+
+    const postId = getPostIdFromScopedId(post.id)
+    if (postId === null) {
+      autoResolveFailureUntil.set(post.id, nowMs + autoResolveFailureCooldownMs)
+      continue
+    }
+
+    try {
+      const hash = await autoResolveWalletClient.writeContract({
+        address: contractAddress,
+        abi: roastWagerAbi,
+        functionName: 'resolve',
+        args: [postId],
+      })
+
+      console.log(`[AUTO_RESOLVE] Submitted resolve for post ${postId.toString()} (${hash})`)
+
+      const receipt = await publicClient.waitForTransactionReceipt({ hash })
+
+      if (receipt.status !== 'success') {
+        throw new Error('Resolve transaction reverted')
+      }
+
+      autoResolveFailureUntil.delete(post.id)
+      console.log(`[AUTO_RESOLVE] Confirmed resolve for post ${postId.toString()}`)
+    } catch (error) {
+      autoResolveFailureUntil.set(post.id, nowMs + autoResolveFailureCooldownMs)
+      console.error(`[AUTO_RESOLVE] Failed to resolve post ${postId.toString()}:`, error)
+    }
+  }
+}
+
 export async function syncMissedEvents(fromBlock: bigint, toBlock: bigint): Promise<void> {
   if (fromBlock > toBlock) {
     return
@@ -344,6 +506,8 @@ export async function syncMissedEvents(fromBlock: bigint, toBlock: bigint): Prom
 export function startEventListener(): () => void {
   let stopped = false
   let reconnectTimer: NodeJS.Timeout | null = null
+  let autoResolveTimer: NodeJS.Timeout | null = null
+  let autoResolveRunning = false
   let reconnectAttempt = 0
   let reconnectScheduled = false
   let unwatchers: Unwatch[] = []
@@ -376,6 +540,43 @@ export function startEventListener(): () => void {
       reconnectScheduled = false
       void startWatchers()
     }, delay)
+  }
+
+  const scheduleAutoResolve = (delayMs = autoResolveIntervalMs): void => {
+    if (stopped || !autoResolveWalletClient || !autoResolveEnabled) {
+      return
+    }
+
+    if (autoResolveTimer) {
+      clearTimeout(autoResolveTimer)
+      autoResolveTimer = null
+    }
+
+    autoResolveTimer = setTimeout(() => {
+      void runAutoResolve()
+    }, delayMs)
+  }
+
+  const runAutoResolve = async (): Promise<void> => {
+    if (stopped || !autoResolveWalletClient || !autoResolveEnabled) {
+      return
+    }
+
+    if (autoResolveRunning) {
+      scheduleAutoResolve(Math.min(1_000, autoResolveIntervalMs))
+      return
+    }
+
+    autoResolveRunning = true
+
+    try {
+      await autoResolveExpiredPosts()
+    } catch (error) {
+      console.error('[AUTO_RESOLVE] Tick failed:', error)
+    } finally {
+      autoResolveRunning = false
+      scheduleAutoResolve()
+    }
   }
 
   const registerWatcher = (eventName: EventName): void => {
@@ -470,12 +671,24 @@ export function startEventListener(): () => void {
 
   void startWatchers()
 
+  if (autoResolveEnabled && autoResolveWalletClient) {
+    console.log(
+      `[AUTO_RESOLVE] Enabled (interval=${autoResolveIntervalMs}ms, batch=${autoResolveBatchSize})`,
+    )
+    scheduleAutoResolve(2_000)
+  }
+
   return () => {
     stopped = true
 
     if (reconnectTimer) {
       clearTimeout(reconnectTimer)
       reconnectTimer = null
+    }
+
+    if (autoResolveTimer) {
+      clearTimeout(autoResolveTimer)
+      autoResolveTimer = null
     }
 
     cleanupWatchers()

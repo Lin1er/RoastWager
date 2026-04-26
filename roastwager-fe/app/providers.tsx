@@ -8,7 +8,7 @@ import {
 } from "@rainbow-me/rainbowkit";
 import { cookieStorage, createStorage, WagmiProvider } from "wagmi";
 import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
-import { monadTestnet } from "wagmi/chains";
+import { celo } from "wagmi/chains";
 import { useMemo } from "react";
 import { OptimisticRoastWagerProvider } from "@/lib/optimistic-roastwager";
 import { BetPreferencesProvider } from "@/lib/bet-preferences";
@@ -16,7 +16,7 @@ import { BetPreferencesProvider } from "@/lib/bet-preferences";
 const config = getDefaultConfig({
   appName: "RoastWager",
   projectId: "ddfa2b83de6e2b1a74be3c0341ea060c",
-  chains: [monadTestnet],
+  chains: [celo],
   ssr: false,
   storage: createStorage({
     storage: cookieStorage,

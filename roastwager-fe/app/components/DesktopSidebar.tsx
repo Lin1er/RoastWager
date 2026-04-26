@@ -53,7 +53,7 @@ export default function DesktopSidebar() {
         </div>
         <div>
           <p className="text-base font-black tracking-tight text-[var(--text-main)]">RoastWager</p>
-          <p className="text-xs text-[var(--text-muted)]">Monad Market</p>
+          <p className="text-xs text-[var(--text-muted)]">Celo Mainnet</p>
         </div>
       </div>
 

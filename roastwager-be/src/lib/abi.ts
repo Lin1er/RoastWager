@@ -47,4 +47,11 @@ export const roastWagerAbi = [
     ],
     anonymous: false,
   },
+  {
+    type: 'function',
+    name: 'resolve',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: 'postId', type: 'uint256' }],
+    outputs: [],
+  },
 ] as const

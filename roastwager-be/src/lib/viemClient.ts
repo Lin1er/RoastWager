@@ -1,7 +1,7 @@
 import 'dotenv/config'
 import { createPublicClient, defineChain, http } from 'viem'
 
-const rpcUrl = process.env.MONAD_RPC_URL
+export const rpcUrl = process.env.MONAD_RPC_URL
 
 if (!rpcUrl) {
   throw new Error('Missing MONAD_RPC_URL')
