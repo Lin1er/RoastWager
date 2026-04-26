@@ -4,6 +4,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAccount } from "wagmi";
 import { useQuery } from "@tanstack/react-query";
 import { fetchUser } from "@/lib/backend";
+import Image from "next/image";
 
 export default function Header() {
   const { address } = useAccount();
@@ -22,13 +23,13 @@ export default function Header() {
     >
       {/* Left */}
       <div className="flex items-center gap-2">
-        {/* Logo */}
-        <div
-          className="w-7 h-7 rounded-lg flex items-center justify-center
-        bg-[var(--primary)] text-white font-bold text-sm shadow-sm"
-        >
-          ⚡
-        </div>
+        <Image
+          src="/favicon/favicon-32x32.png"
+          alt="RoastWager icon"
+          width={28}
+          height={28}
+          className="h-7 w-7 rounded-lg"
+        />
 
         <span className="text-base font-black text-[var(--text-main)] tracking-tight">
           RoastWager
